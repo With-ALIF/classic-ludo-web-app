@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <clipPath id="lv-round-apple">
+      <rect width="64" height="64" rx="14" />
+    </clipPath>
+  </defs>
+  <g clip-path="url(#lv-round-apple)">
+    <rect width="32" height="32" fill="#E53935" />
+    <rect x="32" width="32" height="32" fill="#43A047" />
+    <rect y="32" width="32" height="32" fill="#1E88E5" />
+    <rect x="32" y="32" width="32" height="32" fill="#F9A825" />
+  </g>
+  <circle cx="32" cy="32" r="12" fill="#ffffff" />
+  <circle cx="32" cy="32" r="4.5" fill="#E53935" />
+</svg>
