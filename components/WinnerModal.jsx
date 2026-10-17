@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Trophy, RotateCcw, Home } from "lucide-react";
+import { Trophy, RotateCcw, Home, History } from "lucide-react";
 
 export default function WinnerModal({ playerName, colorName, colorHex, onPlayAgain }) {
   return (
@@ -37,6 +37,13 @@ export default function WinnerModal({ playerName, colorName, colorHex, onPlayAga
           >
             <Home className="h-4 w-4" />
             Back to Home
+          </Link>
+          <Link
+            href="/history"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 hover:border-zinc-400 hover:bg-zinc-50"
+          >
+            <History className="h-4 w-4" />
+            View History
           </Link>
         </div>
       </div>

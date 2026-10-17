@@ -68,3 +68,15 @@ export function getTokenCell(color, progress) {
   if (progress < 0 || progress > 56) return null;
   return COLOR_PATHS[color][progress] ?? null;
 }
+
+export function findVictims(tokens, moverColor, destProgress) {
+  const dest = getTokenCell(moverColor, destProgress);
+  if (!dest || isSafeCell(dest[0], dest[1])) return [];
+  return tokens
+    .filter((t) => {
+      if (t.color === moverColor || t.progress < 0) return false;
+      const c = getTokenCell(t.color, t.progress);
+      return !!c && c[0] === dest[0] && c[1] === dest[1];
+    })
+    .map((t) => t.id);
+}

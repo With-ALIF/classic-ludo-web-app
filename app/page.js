@@ -11,13 +11,22 @@ import Footer from "../components/home/Footer";
 export default function HomePage() {
   const [playerCount, setPlayerCount] = useState(2);
   const [mode, setMode] = useState("offline");
+  const [aiCount, setAiCount] = useState(0);
+  const [difficulty, setDifficulty] = useState("medium");
 
   return (
     <div className="min-h-screen bg-neutral-50">
       <Header />
       <main className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
         <HeroSection mode={mode} setMode={setMode} />
-        <SetupCard playerCount={playerCount} setPlayerCount={setPlayerCount} />
+        <SetupCard
+          playerCount={playerCount}
+          setPlayerCount={setPlayerCount}
+          aiCount={aiCount}
+          setAiCount={setAiCount}
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+        />
         <ColorPaletteSection />
         <FeaturesSection />
       </main>

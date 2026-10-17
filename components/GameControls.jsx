@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { Dices, RotateCcw, LogOut } from "lucide-react";
 
-export default function GameControls({ onRoll, rolling = false, disabled = false }) {
+export default function GameControls({
+  onRoll,
+  rolling = false,
+  disabled = false,
+  hideRollOnMobile = false,
+}) {
   return (
     <section
       aria-label="Game controls"
@@ -13,7 +18,7 @@ export default function GameControls({ onRoll, rolling = false, disabled = false
           type="button"
           onClick={onRoll}
           disabled={disabled || rolling}
-          className={`inline-flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ${
+          className={`${hideRollOnMobile ? "hidden md:inline-flex" : "inline-flex"} w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ${
             disabled || rolling ? "cursor-not-allowed opacity-70" : "hover:bg-zinc-800"
           }`}
         >

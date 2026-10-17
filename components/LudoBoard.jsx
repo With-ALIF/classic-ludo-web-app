@@ -17,10 +17,10 @@ Object.entries(HOME_LANES).forEach(([color, cells]) => {
 });
 
 const QUADRANTS = [
-  { color: "red", gridRow: "1 / 7", gridColumn: "1 / 7" },
-  { color: "green", gridRow: "1 / 7", gridColumn: "10 / 16" },
-  { color: "yellow", gridRow: "10 / 16", gridColumn: "10 / 16" },
-  { color: "blue", gridRow: "10 / 16", gridColumn: "1 / 7" },
+  { color: "red", gridRow: "1 / 7", gridColumn: "1 / 7", badgePos: "left-1 top-1" },
+  { color: "green", gridRow: "1 / 7", gridColumn: "10 / 16", badgePos: "right-1 top-1" },
+  { color: "yellow", gridRow: "10 / 16", gridColumn: "10 / 16", badgePos: "right-1 bottom-1" },
+  { color: "blue", gridRow: "10 / 16", gridColumn: "1 / 7", badgePos: "left-1 bottom-1" },
 ];
 
 function isArmCell(r, c) {
@@ -41,16 +41,30 @@ function armCells() {
   return cells;
 }
 
-function HomeBase({ color, gridRow, gridColumn, tokens, movableIds, selectedId, onTokenClick }) {
+function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, selectedId, onTokenClick }) {
   const hex = LUDO_COLORS[color];
   const nests = [0, 1, 2, 3].map(
     (i) => tokens.find((t) => t.color === color && t.index === i && t.progress === -1) ?? null
   );
+  const homeCount = tokens.filter((t) => t.color === color && t.progress === 56).length;
+  const totalProgress = tokens
+    .filter((t) => t.color === color)
+    .reduce((sum, t) => sum + Math.max(0, Math.min(t.progress, 56)), 0);
+  const pct = Math.round((totalProgress / (4 * 56)) * 100);
+  const colorName = color.charAt(0).toUpperCase() + color.slice(1);
   return (
     <div
-      className="flex items-center justify-center ring-1 ring-inset ring-zinc-800/20"
+      className="relative flex items-center justify-center ring-1 ring-inset ring-zinc-800/20"
       style={{ gridRow, gridColumn, backgroundColor: hex }}
     >
+      <span
+        role="img"
+        aria-label={`${colorName} has completed ${pct}% - ${homeCount} of 4 tokens home`}
+        title={`${pct}% complete - ${homeCount} of 4 tokens home`}
+        className={`absolute z-10 rounded-full border border-black/10 bg-white/95 px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums text-zinc-900 shadow-sm sm:text-xs ${badgePos}`}
+      >
+        {pct}%
+      </span>
       <div className="h-[70%] w-[70%] rounded-lg bg-white p-[6%] shadow-sm">
         <div className="grid h-full w-full grid-cols-2 grid-rows-2">
           {nests.map((token, i) => {

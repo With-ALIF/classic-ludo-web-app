@@ -3,6 +3,7 @@ export default function PlayerInfo({
   color,
   tokensInBase = 4,
   active = false,
+  ai = false,
 }) {
   return (
     <div
@@ -18,6 +19,11 @@ export default function PlayerInfo({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-semibold text-zinc-900">{name}</p>
+          {ai && (
+            <span className="shrink-0 rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+              AI
+            </span>
+          )}
           {active && (
             <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
               Active

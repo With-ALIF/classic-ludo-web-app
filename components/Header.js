@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Dices, Home, Gamepad2, Settings, Menu, X } from "lucide-react";
+import { Dices, Home, Gamepad2, Settings, Menu, X, History } from "lucide-react";
 
 const NAV = [
   { label: "Home", href: "/", icon: Home, active: true },
   { label: "Play Game", href: "/game", icon: Gamepad2, active: false },
+  { label: "History", href: "/history", icon: History, active: false },
   { label: "Settings", href: "#settings", icon: Settings, active: false },
 ];
 
