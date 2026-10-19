@@ -41,8 +41,8 @@ function armCells() {
   return cells;
 }
 
-function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, selectedId, onTokenClick }) {
-  const hex = LUDO_COLORS[color];
+function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, selectedId, onTokenClick, colors, highlight }) {
+  const hex = colors[color];
   const nests = [0, 1, 2, 3].map(
     (i) => tokens.find((t) => t.color === color && t.index === i && t.progress === -1) ?? null
   );
@@ -79,7 +79,7 @@ function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, se
                   aria-label={
                     token ? `${color} token ${i + 1}${movable ? ", movable" : ""}` : `Empty ${color} nest`
                   }
-                  className={`flex h-full w-full items-center justify-center rounded-full border-2 ${
+                  className={`flex h-full w-full touch-action-manipulation items-center justify-center rounded-full border-2 ${
                     movable ? "cursor-pointer" : "cursor-default"
                   }`}
                   style={{ borderColor: hex, backgroundColor: `${hex}4D` }}
@@ -88,7 +88,7 @@ function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, se
                     <LudoToken
                       color={hex}
                       title={`${color} token ${i + 1}`}
-                      movable={movable}
+                      movable={movable && highlight}
                       selected={selected}
                     />
                   )}
@@ -102,7 +102,7 @@ function HomeBase({ color, gridRow, gridColumn, badgePos, tokens, movableIds, se
   );
 }
 
-function FinishHome() {
+function FinishHome({ colors }) {
   return (
     <div
       className="relative overflow-hidden bg-white ring-1 ring-inset ring-zinc-300"
@@ -112,28 +112,28 @@ function FinishHome() {
       <span
         className="absolute inset-0"
         style={{
-          backgroundColor: LUDO_COLORS.red,
+          backgroundColor: colors.red,
           clipPath: "polygon(0 0, 0 100%, 50% 50%)",
         }}
       />
       <span
         className="absolute inset-0"
         style={{
-          backgroundColor: LUDO_COLORS.green,
+          backgroundColor: colors.green,
           clipPath: "polygon(0 0, 100% 0, 50% 50%)",
         }}
       />
       <span
         className="absolute inset-0"
         style={{
-          backgroundColor: LUDO_COLORS.yellow,
+          backgroundColor: colors.yellow,
           clipPath: "polygon(100% 0, 100% 100%, 50% 50%)",
         }}
       />
       <span
         className="absolute inset-0"
         style={{
-          backgroundColor: LUDO_COLORS.blue,
+          backgroundColor: colors.blue,
           clipPath: "polygon(0 100%, 100% 100%, 50% 50%)",
         }}
       />
@@ -142,7 +142,7 @@ function FinishHome() {
   );
 }
 
-function BoardTokens({ tokens, movableIds, selectedId, onTokenClick }) {
+function BoardTokens({ tokens, movableIds, selectedId, onTokenClick, colors, highlight }) {
   const groups = {};
   tokens.forEach((t) => {
     if (t.progress < 0) return;
@@ -177,21 +177,21 @@ function BoardTokens({ tokens, movableIds, selectedId, onTokenClick }) {
               disabled={!movable}
               onClick={() => onTokenClick?.(token.id)}
               aria-label={`${token.color} token${movable ? ", movable" : ""}`}
-              className={`pointer-events-auto absolute transition-[left,top] duration-200 ease-linear ${
+              className={`pointer-events-auto absolute touch-action-manipulation transition-[left,top] duration-200 ease-linear ${
                 movable ? "cursor-pointer" : "cursor-default"
               }`}
               style={{
                 left: `${((c + 0.5) / 15) * 100 + (off[0] * unit) / 4}%`,
                 top: `${((r + 0.5) / 15) * 100 + (off[1] * unit) / 4}%`,
-                width: `${crowded ? 3.4 : 5.4}%`,
+                width: `${crowded ? 3.4 : 6.2}%`,
                 aspectRatio: "1 / 1",
                 transform: "translate(-50%, -50%)",
               }}
             >
               <LudoToken
-                color={LUDO_COLORS[token.color]}
+                color={colors[token.color]}
                 title={`${token.color} token`}
-                movable={movable}
+                movable={movable && highlight}
                 selected={selected}
                 className="h-full w-full"
               />
@@ -203,7 +203,14 @@ function BoardTokens({ tokens, movableIds, selectedId, onTokenClick }) {
   );
 }
 
-export default function LudoBoard({ tokens = [], movableIds = [], selectedId = null, onTokenClick = null }) {
+export default function LudoBoard({
+  tokens = [],
+  movableIds = [],
+  selectedId = null,
+  onTokenClick = null,
+  colors = LUDO_COLORS,
+  highlight = true,
+}) {
   return (
     <div
       role="img"
@@ -218,6 +225,8 @@ export default function LudoBoard({ tokens = [], movableIds = [], selectedId = n
           movableIds={movableIds}
           selectedId={selectedId}
           onTokenClick={onTokenClick}
+          colors={colors}
+          highlight={highlight}
         />
       ))}
 
@@ -229,19 +238,21 @@ export default function LudoBoard({ tokens = [], movableIds = [], selectedId = n
           <LudoCell
             key={key}
             style={{ gridRow: r + 1, gridColumn: c + 1 }}
-            color={lane ? LUDO_COLORS[lane] : start ? LUDO_COLORS[start.color] : null}
-            start={start ? { hex: LUDO_COLORS[start.color], direction: start.direction } : null}
+            color={lane ? colors[lane] : start ? colors[start.color] : null}
+            start={start ? { hex: colors[start.color], direction: start.direction } : null}
             star={!start && STAR_CELLS.includes(key)}
           />
         );
       })}
 
-      <FinishHome />
+      <FinishHome colors={colors} />
       <BoardTokens
         tokens={tokens}
         movableIds={movableIds}
         selectedId={selectedId}
         onTokenClick={onTokenClick}
+        colors={colors}
+        highlight={highlight}
       />
     </div>
   );

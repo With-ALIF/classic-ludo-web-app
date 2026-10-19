@@ -9,6 +9,17 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+a,
+[role="button"],
+[role="switch"],
+[role="radio"],
+[role="tab"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -52,4 +63,19 @@ body {
 
 .animate-winner-pop {
   animation: winner-pop 0.25s ease-out;
+}
+
+[data-motion="off"] .animate-dice-shake,
+[data-motion="off"] .animate-winner-pop {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-dice-shake,
+  .animate-winner-pop {
+    animation: none !important;
+  }
 }

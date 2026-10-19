@@ -2,17 +2,25 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Dices, Home, Gamepad2, Settings, Menu, X, History } from "lucide-react";
 
 const NAV = [
-  { label: "Home", href: "/", icon: Home, active: true },
-  { label: "Play Game", href: "/game", icon: Gamepad2, active: false },
-  { label: "History", href: "/history", icon: History, active: false },
-  { label: "Settings", href: "#settings", icon: Settings, active: false },
+  { label: "Home", href: "/", icon: Home },
+  { label: "Play Game", href: "/game", icon: Gamepad2 },
+  { label: "History", href: "/history", icon: History },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
+
+function isItemActive(pathname, href) {
+  if (href === "/") return pathname === "/";
+  if (href === "/game") return pathname === "/game" || pathname.startsWith("/setup");
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export default function Header() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname() ?? "/";
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur">
@@ -27,20 +35,24 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-          {NAV.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
-                item.active
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          ))}
+          {NAV.map((item) => {
+            const active = isItemActive(pathname, item.href);
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+                  active
+                    ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 active:bg-indigo-100"
+                    : "text-zinc-600 hover:bg-indigo-50 hover:text-indigo-700 active:bg-indigo-100"
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="hidden md:block">
@@ -55,7 +67,7 @@ export default function Header() {
 
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 md:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 active:bg-indigo-100 md:hidden"
           onClick={() => setOpen((v) => !v)}
           aria-label="Toggle menu"
           aria-expanded={open}
@@ -70,21 +82,25 @@ export default function Header() {
           aria-label="Mobile"
         >
           <div className="flex flex-col gap-1">
-            {NAV.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium ${
-                  item.active
-                    ? "bg-zinc-100 text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-50"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
+            {NAV.map((item) => {
+              const active = isItemActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    active
+                      ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 active:bg-indigo-100"
+                      : "text-zinc-600 hover:bg-indigo-50 hover:text-indigo-700 active:bg-indigo-100"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
         </nav>
       )}

@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { User, Gamepad2, Bot } from "lucide-react";
 import { PLAYER_OPTIONS, COLORS, PLAYER_COLOR_INDEXES } from "./constants";
+import { loadSettings } from "../../lib/settings";
 
 const AI_DIFFICULTY_OPTIONS = [
   { value: "easy", label: "Easy" },
@@ -20,6 +22,14 @@ export default function SetupCard({
 }) {
   const maxAi = playerCount - 1;
   const selectedAi = Math.min(aiCount, maxAi);
+
+  useEffect(() => {
+    const s = loadSettings();
+    setPlayerCount(s.general.players);
+    setAiCount(s.general.opponent === "local" ? 0 : Math.min(1, s.general.players - 1));
+    setDifficulty(s.general.difficulty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const aiOptions = [0, 1, 2, 3].filter((n) => n <= maxAi);
   const aiGridClass =
     aiOptions.length === 2

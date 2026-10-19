@@ -1,4 +1,5 @@
 import "./globals.css";
+import PwaRegister from "../components/PwaRegister";
 
 export const metadata = {
   title: {
@@ -9,9 +10,14 @@ export const metadata = {
     "Roll the dice. Bring your tokens home. Classic Ludo for 2, 3 and 4 players — play offline with friends and family.",
   applicationName: "LudoVerse",
   keywords: ["ludo", "classic ludo", "board game", "dice game", "ludoverse", "offline board game"],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "LudoVerse",
+  },
   icons: {
     icon: "/icon.svg",
-    apple: "/apple-icon.svg",
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     type: "website",
@@ -36,6 +42,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="min-h-screen bg-neutral-50 text-zinc-900 antialiased">
         {children}
+        <PwaRegister />
       </body>
     </html>
   );

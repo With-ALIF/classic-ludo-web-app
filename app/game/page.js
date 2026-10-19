@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Dices, Users } from "lucide-react";
+import { Dices, RotateCcw, Settings as SettingsIcon, Users, Volume2, VolumeX } from "lucide-react";
 import Header from "../../components/Header";
 import LudoBoard from "../../components/LudoBoard";
-import { LUDO_COLORS, findVictims } from "../../components/ludo-config";
+import { LUDO_COLORS, findVictims, canTokenMove, getMovableTokens } from "../../components/ludo-config";
 import PlayerInfo from "../../components/PlayerInfo";
 import Dice from "../../components/Dice";
 import GameControls from "../../components/GameControls";
@@ -13,6 +14,10 @@ import WinnerModal from "../../components/WinnerModal";
 import { PLAYER_COLOR_INDEXES } from "../../components/home/constants";
 import { chooseAiMove, AI_DIFFICULTIES } from "../../lib/ai-opponent";
 import { buildMatchRecord, createMatchId, saveMatch } from "../../lib/game-history";
+import { sfx, unlockAudio, setMuted as setSfxMuted, setChannels as setSfxChannels } from "../../lib/sfx";
+import { loadActiveGame, saveActiveGame, clearActiveGame } from "../../lib/active-game";
+import { loadSettings, updateSettings, defaultSettings, SETTINGS_KEY, THEMES } from "../../lib/settings";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const ALL_PLAYERS = [
   { name: "Player 1", colorName: "Red", color: LUDO_COLORS.red },
@@ -88,13 +93,27 @@ function GameBoard() {
   const mode = getMode(searchParams);
   const rosterRaw = searchParams.get("roster");
   const rosterPlayers = parseRoster(rosterRaw);
-  const players =
+  const [settings, setSettings] = useState(defaultSettings);
+  const palette = THEMES[settings.appearance.theme]?.colors ?? LUDO_COLORS;
+  const tokenAnimOn =
+    settings.appearance.animations &&
+    settings.appearance.tokenAnimation &&
+    !settings.appearance.reducedMotion;
+  const diceAnimOn =
+    settings.appearance.animations &&
+    settings.appearance.diceAnimation &&
+    !settings.appearance.reducedMotion;
+  const basePlayers =
     rosterPlayers ??
     PLAYER_COLOR_INDEXES[playerCount].map((i, idx) => ({
       ...ALL_PLAYERS[i],
       isAi: aiCount > 0 && idx >= 1 && idx <= aiCount,
       difficulty,
     }));
+  const players = basePlayers.map((p) => ({
+    ...p,
+    color: palette[p.colorName.toLowerCase()] ?? p.color,
+  }));
   const activeColors = players.map((p) => p.colorName.toLowerCase());
   const [diceValue, setDiceValue] = useState(1);
   const [rolling, setRolling] = useState(false);
@@ -107,6 +126,7 @@ function GameBoard() {
   const [extraTurn, setExtraTurn] = useState(false);
   const [winnerIdx, setWinnerIdx] = useState(null);
   const [captureFlash, setCaptureFlash] = useState(null);
+  const [confirmNewGame, setConfirmNewGame] = useState(false);
   const timerRef = useRef(null);
   const animRef = useRef(null);
   const autoRef = useRef(null);
@@ -116,6 +136,7 @@ function GameBoard() {
   const matchIdRef = useRef(null);
   const matchStartedAtRef = useRef(null);
   const matchRecordedRef = useRef(false);
+  const activeSigRef = useRef(null);
   const colorsKey = activeColors.join(",");
   const gameStatus = winnerIdx === null ? "playing" : "finished";
 
@@ -165,16 +186,123 @@ function GameBoard() {
   };
 
   useEffect(() => {
+    const sig = `${colorsKey}|${rosterRaw ?? ""}`;
+    if (activeSigRef.current === sig) return;
+    activeSigRef.current = sig;
+    const saved = loadActiveGame({ colorsKey, rosterRaw });
+    if (saved) {
+      setTokens(saved.tokens);
+      setCurrentPlayerIdx(saved.currentPlayerIdx);
+      setDiceValue(typeof saved.diceValue === "number" ? saved.diceValue : 1);
+      setDiceUsed(saved.diceUsed !== false);
+      setSixCount(saved.sixCount ?? 0);
+      setExtraTurn(!!saved.extraTurn);
+      setWinnerIdx(saved.winnerIdx ?? null);
+      setRolling(false);
+      setAnimating(false);
+      setSelectedId(null);
+      setCaptureFlash(null);
+      matchIdRef.current = saved.matchId ?? null;
+      matchStartedAtRef.current = saved.matchStartedAt ?? null;
+      matchRecordedRef.current = !!saved.matchRecorded;
+      return;
+    }
+    clearActiveGame();
     resetGame(colorsKey.split(","));
   }, [colorsKey, rosterRaw]);
 
+  useEffect(() => {
+    if (animating || rolling) return;
+    saveActiveGame({
+      colorsKey,
+      rosterRaw,
+      tokens,
+      currentPlayerIdx,
+      diceValue,
+      diceUsed,
+      sixCount,
+      extraTurn,
+      winnerIdx,
+      matchId: matchIdRef.current,
+      matchStartedAt: matchStartedAtRef.current,
+      matchRecorded: matchRecordedRef.current,
+    });
+  }, [
+    colorsKey,
+    rosterRaw,
+    tokens,
+    currentPlayerIdx,
+    diceValue,
+    diceUsed,
+    sixCount,
+    extraTurn,
+    winnerIdx,
+    animating,
+    rolling,
+  ]);
+
   const handlePlayAgain = () => resetGame(activeColors);
 
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    setSettings(loadSettings());
+    const onStorage = (e) => {
+      if (e.key === SETTINGS_KEY) setSettings(loadSettings());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
+    setSfxMuted(!settings.sound.effects);
+    setSfxChannels({
+      dice: settings.sound.dice,
+      movement: settings.sound.movement,
+      capture: settings.sound.capture,
+      victory: settings.sound.victory,
+    });
+  }, [settings.sound]);
+
+  useEffect(() => {
+    if (!settings.gameplay.confirmLeave) return;
+    if (winnerIdx !== null) return;
+    if (!tokens.some((t) => t.progress >= 0)) return;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [settings.gameplay.confirmLeave, tokens, winnerIdx]);
+
+  const handleToggleSound = () => {
+    setSettings(updateSettings({ sound: { effects: !settings.sound.effects } }));
+    unlockAudio();
+  };
+
+  const handleNewGame = () => {
+    if (settings.general.confirmRestart) {
+      setConfirmNewGame(true);
+    } else {
+      handlePlayAgain();
+    }
+  };
+
   const handleRoll = () => {
-    if (rolling || animating || gameStatus !== "playing" || busyRef.current) return;
+    if (rolling || animating || gameStatus !== "playing" || !diceUsed || busyRef.current) return;
     busyRef.current = true;
     setRolling(true);
     setSelectedId(null);
+    sfx.roll();
     timerRef.current = setTimeout(() => {
       let next = Math.floor(Math.random() * 6) + 1;
       while (next === diceValue) {
@@ -188,25 +316,24 @@ function GameBoard() {
         setSixCount(0);
         setDiceUsed(true);
         setExtraTurn(false);
+        sfx.fail();
         showToast(`${players[currentPlayerIdx]?.colorName ?? "Player"} rolled three 6s — turn skipped!`);
         setCurrentPlayerIdx((i) => (i + 1) % players.length);
         busyRef.current = false;
         return;
       }
       const rollerColor = players[currentPlayerIdx]?.colorName.toLowerCase();
-      const movers = tokens.filter(
-        (t) =>
-          t.color === rollerColor &&
-          (t.progress === -1 ? next === 6 : t.progress !== 56 && t.progress + next <= 56)
-      );
+      const movers = getMovableTokens(tokens, rollerColor, next);
       if (movers.length === 0) {
         setDiceUsed(true);
         setSixCount(0);
         setExtraTurn(false);
+        sfx.pass();
         setCurrentPlayerIdx((i) => (i + 1) % players.length);
         busyRef.current = false;
       } else if (movers.length === 1) {
         setDiceUsed(false);
+        busyRef.current = true;
         autoRef.current = setTimeout(() => moveToken(movers[0], next), 650);
       } else {
         setDiceUsed(false);
@@ -221,14 +348,7 @@ function GameBoard() {
   const currentDifficulty = players[currentPlayerIdx]?.difficulty ?? "medium";
   const movableIds =
     !diceUsed && !animating && gameStatus === "playing"
-      ? tokens
-          .filter((t) => {
-            if (t.color !== currentColor) return false;
-            if (t.progress === 56) return false;
-            if (t.progress === -1) return diceValue === 6;
-            return t.progress + diceValue <= 56;
-          })
-          .map((t) => t.id)
+      ? getMovableTokens(tokens, currentColor, diceValue).map((t) => t.id)
       : [];
 
   const rollDisabled =
@@ -259,6 +379,7 @@ function GameBoard() {
   };
 
   const flashCapture = (moverColor, victimIds) => {
+    sfx.capture();
     const victimColors = [...new Set(victimIds.map((id) => id.split("-")[0]))];
     showToast(
       `${capName(moverColor)} captured ${victimColors.map(capName).join(" & ")}! Bonus roll!`
@@ -296,6 +417,10 @@ function GameBoard() {
       clearTimeout(autoRef.current);
       autoRef.current = null;
     }
+    if (gameStatus !== "playing" || !canTokenMove(token, dice)) {
+      busyRef.current = false;
+      return;
+    }
     const dest = token.progress === -1 ? 0 : token.progress + dice;
     setSelectedId(token.id);
     if (token.progress === -1) {
@@ -308,14 +433,56 @@ function GameBoard() {
         })
       );
       if (victims.length > 0) flashCapture(token.color, victims);
+      else sfx.exitBase();
       finishMove(dice, victims.length > 0);
       busyRef.current = false;
+      return;
+    }
+    const landResult = () => {
+      const after = tokens.map((t) =>
+        t.id === token.id ? { ...t, progress: dest } : t
+      );
+      const victims = findVictims(after, token.color, dest);
+      const finalTokens =
+        victims.length > 0
+          ? after.map((t) => (victims.includes(t.id) ? { ...t, progress: -1 } : t))
+          : after;
+      setTokens(finalTokens);
+      if (victims.length > 0) flashCapture(token.color, victims);
+      const finishedCount = finalTokens.filter(
+        (t) => t.color === token.color && t.progress === 56
+      ).length;
+      if (finishedCount === 4) {
+        const wIdx = players.findIndex(
+          (p) => p.colorName.toLowerCase() === token.color
+        );
+        setWinnerIdx(wIdx);
+        setSelectedId(null);
+        setDiceUsed(true);
+        setSixCount(0);
+        setExtraTurn(false);
+        busyRef.current = false;
+        sfx.win();
+        recordMatch(wIdx);
+        return;
+      }
+      if (victims.length === 0) {
+        if (dest === 56) sfx.home();
+        else sfx.land();
+      }
+      finishMove(dice, victims.length > 0);
+      busyRef.current = false;
+    };
+
+    if (!tokenAnimOn) {
+      landResult();
       return;
     }
     setAnimating(true);
     let remaining = dest - token.progress;
     animRef.current = setInterval(() => {
       remaining -= 1;
+      sfx.step();
       setTokens((prev) =>
         prev.map((t) =>
           t.id === token.id ? { ...t, progress: t.progress + 1 } : t
@@ -325,32 +492,7 @@ function GameBoard() {
         clearInterval(animRef.current);
         animRef.current = null;
         setAnimating(false);
-        const after = tokens.map((t) =>
-          t.id === token.id ? { ...t, progress: dest } : t
-        );
-        const victims = findVictims(after, token.color, dest);
-        const finalTokens =
-          victims.length > 0
-            ? after.map((t) => (victims.includes(t.id) ? { ...t, progress: -1 } : t))
-            : after;
-        setTokens(finalTokens);
-        if (victims.length > 0) flashCapture(token.color, victims);
-        const finishedCount = finalTokens.filter(
-          (t) => t.color === token.color && t.progress === 56
-        ).length;
-        if (finishedCount === 4) {
-          const wIdx = players.findIndex(
-            (p) => p.colorName.toLowerCase() === token.color
-          );
-          setWinnerIdx(wIdx);
-          setSelectedId(null);
-          setDiceUsed(true);
-          busyRef.current = false;
-          recordMatch(wIdx);
-        } else {
-          finishMove(dice, victims.length > 0);
-          busyRef.current = false;
-        }
+        landResult();
       }
     }, 200);
   };
@@ -360,8 +502,9 @@ function GameBoard() {
     if (currentIsAi) return;
     if (!movableIds.includes(id)) return;
     const token = tokens.find((t) => t.id === id);
-    if (!token) return;
+    if (!token || !canTokenMove(token, diceValue)) return;
     busyRef.current = true;
+    sfx.select();
     moveToken(token, diceValue);
   };
 
@@ -419,7 +562,9 @@ function GameBoard() {
   else if (!diceUsed && movableIds.length === 0)
     diceCaption = "No valid moves — turn passes";
   else if (!diceUsed)
-    diceCaption = `${turnColor}: face ${diceValue} — tap a glowing token to move`;
+    diceCaption = settings.gameplay.moveHints
+      ? `${turnColor}: face ${diceValue} — tap a glowing token to move`
+      : `${turnColor}: face ${diceValue}`;
   if (currentIsAi && winnerIdx === null) {
     if (rolling) diceCaption = "AI is rolling...";
     else if (animating) diceCaption = "AI is moving token...";
@@ -428,24 +573,29 @@ function GameBoard() {
   if (winnerIdx !== null) diceCaption = `${turnColor} Wins!`;
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-neutral-50">
+    <div
+      data-motion={
+        settings.appearance.animations && !settings.appearance.reducedMotion ? "on" : "off"
+      }
+      className="min-h-screen min-h-[100dvh] select-none touch-action-manipulation overflow-x-hidden bg-neutral-50"
+    >
       <Header />
 
       <main className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
-        <section className="pb-4 pt-4 text-center sm:pb-6 sm:pt-10">
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
+        <section className="pb-3 pt-3 text-center sm:pb-6 sm:pt-10">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
             Classic Ludo
           </h1>
-          <p className="mt-2 text-sm text-zinc-600 sm:text-base">
+          <p className="mt-1 text-xs text-zinc-600 sm:mt-2 sm:text-base">
             Standard 15&times;15 board &bull; {playerCount} players &bull;{" "}
             {mode === "online" ? "Online" : "Offline"}
           </p>
         </section>
 
-        <div className="grid items-start gap-5 pb-36 md:pb-14 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid items-start gap-4 pb-48 md:pb-14 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section
             aria-label="Ludo board"
-            className="relative min-w-0 rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm sm:p-4"
+            className="relative mx-auto w-full min-w-0 max-w-[min(100%,calc(100dvh-15rem))] rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm sm:p-4 md:max-w-[min(100%,calc(100dvh-8rem))]"
           >
             {captureFlash && (
               <div
@@ -460,18 +610,22 @@ function GameBoard() {
               movableIds={movableIds}
               selectedId={selectedId}
               onTokenClick={handleTokenClick}
+              colors={palette}
+              highlight={settings.gameplay.highlightMoves}
             />
           </section>
 
           <section
             aria-label="Turn controls"
-            className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm md:hidden"
+            className="order-first flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm md:hidden"
           >
-            <span
-              className="h-9 w-9 shrink-0 rounded-full border-2 border-white shadow"
-              style={{ backgroundColor: players[currentPlayerIdx]?.color }}
-              aria-hidden="true"
-            />
+            {settings.gameplay.playerIndicator && (
+              <span
+                className="h-9 w-9 shrink-0 rounded-full border-2 border-white shadow"
+                style={{ backgroundColor: players[currentPlayerIdx]?.color }}
+                aria-hidden="true"
+              />
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-zinc-900">
                 {players[currentPlayerIdx]?.name}
@@ -486,7 +640,7 @@ function GameBoard() {
               type="button"
               onClick={handleRoll}
               disabled={rollDisabled}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm ${
+              className={`inline-flex shrink-0 touch-action-manipulation items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm ${
                 rollDisabled ? "cursor-not-allowed opacity-70" : "hover:bg-zinc-800"
               }`}
             >
@@ -504,7 +658,7 @@ function GameBoard() {
               const home = tokens.filter(
                 (t) => t.color === color && t.progress === 56
               ).length;
-              const active = idx === currentPlayerIdx;
+              const active = settings.gameplay.playerIndicator && idx === currentPlayerIdx;
               return (
                 <div
                   key={p.colorName}
@@ -553,7 +707,7 @@ function GameBoard() {
                       ).length
                     }
                     tokensHome={0}
-                    active={idx === currentPlayerIdx}
+                    active={settings.gameplay.playerIndicator && idx === currentPlayerIdx}
                     ai={isAiSlot(idx)}
                   />
                 ))}
@@ -569,7 +723,7 @@ function GameBoard() {
                 Dice
               </h2>
               <div className="mt-3 flex items-center justify-center py-1">
-                <Dice value={diceValue} rolling={rolling} />
+                <Dice value={diceValue} rolling={rolling && diceAnimOn} />
               </div>
               <p className="mt-2 text-center text-xs text-zinc-500">
                 {diceCaption}
@@ -581,21 +735,24 @@ function GameBoard() {
               rolling={rolling}
               disabled={rollDisabled}
               hideRollOnMobile
+              soundOn={settings.sound.effects}
+              onToggleSound={handleToggleSound}
+              onNewGame={handleNewGame}
             />
           </aside>
         </div>
       </main>
 
       <div
-        aria-label="Dice controls"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 px-3 pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.1)] backdrop-blur md:hidden"
+        aria-label="Game controls (mobile)"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 px-4 pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.1)] backdrop-blur md:hidden"
         style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center gap-3">
           <Dice
             value={diceValue}
-            rolling={rolling}
-            className="h-12 w-12 shrink-0 rounded-xl"
+            rolling={rolling && diceAnimOn}
+            className="h-11 w-11 shrink-0 rounded-xl"
           />
           <p className="min-w-0 flex-1 truncate text-xs text-zinc-600">
             {diceCaption}
@@ -604,13 +761,44 @@ function GameBoard() {
             type="button"
             onClick={handleRoll}
             disabled={rollDisabled}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-sm ${
+            className={`inline-flex shrink-0 touch-action-manipulation items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ${
               rollDisabled ? "cursor-not-allowed opacity-70" : "hover:bg-zinc-800"
             }`}
           >
             <Dices className="h-4 w-4" />
             {rolling ? "Rolling..." : "Roll Dice"}
           </button>
+        </div>
+        <div className="mt-2 flex items-stretch gap-2">
+          <button
+            type="button"
+            onClick={handleNewGame}
+            className="inline-flex flex-1 touch-action-manipulation items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-50 active:bg-zinc-100"
+          >
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+            New Game
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            aria-pressed={settings.sound.effects}
+            aria-label={settings.sound.effects ? "Mute sound effects" : "Unmute sound effects"}
+            className="inline-flex flex-1 touch-action-manipulation items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-50 active:bg-zinc-100"
+          >
+            {settings.sound.effects ? (
+              <Volume2 className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <VolumeX className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {settings.sound.effects ? "Sound On" : "Sound Off"}
+          </button>
+          <Link
+            href="/settings"
+            className="inline-flex flex-1 touch-action-manipulation items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2 py-2 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-50 active:bg-zinc-100"
+          >
+            <SettingsIcon className="h-3.5 w-3.5 shrink-0" />
+            Settings
+          </Link>
         </div>
       </div>
 
@@ -622,8 +810,20 @@ function GameBoard() {
           onPlayAgain={handlePlayAgain}
         />
       )}
+      <ConfirmDialog
+        open={confirmNewGame}
+        title="Restart game?"
+        message="All tokens return to their base and a new match begins. Current progress on this match will be lost."
+        confirmLabel="Restart"
+        destructive
+        onConfirm={() => {
+          setConfirmNewGame(false);
+          handlePlayAgain();
+        }}
+        onCancel={() => setConfirmNewGame(false)}
+      />
       <footer className="border-t border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 pb-28 pt-5 text-xs text-zinc-500 sm:flex-row sm:px-6 sm:pb-5 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 pb-44 pt-5 text-xs text-zinc-500 sm:flex-row sm:px-6 sm:pb-5 lg:px-8">
           <span className="inline-flex items-center gap-1.5 font-medium text-zinc-700">
             <Dices className="h-4 w-4" /> LudoVerse
           </span>

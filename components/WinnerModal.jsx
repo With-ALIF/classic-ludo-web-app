@@ -9,7 +9,7 @@ export default function WinnerModal({ playerName, colorName, colorHex, onPlayAga
       aria-modal="true"
       aria-label="Game over"
     >
-      <div className="animate-winner-pop w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 text-center shadow-xl">
+      <div className="animate-winner-pop max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-center shadow-xl">
         <span
           className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-4 border-white shadow"
           style={{ backgroundColor: colorHex }}

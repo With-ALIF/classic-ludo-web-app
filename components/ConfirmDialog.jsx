@@ -33,7 +33,7 @@ export default function ConfirmDialog({
         if (event.target === event.currentTarget) onCancel?.();
       }}
     >
-      <div className="animate-winner-pop w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl">
+      <div className="animate-winner-pop max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl">
         <h2
           id="confirm-dialog-title"
           className="text-base font-semibold tracking-tight text-zinc-900"

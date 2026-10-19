@@ -80,3 +80,19 @@ export function findVictims(tokens, moverColor, destProgress) {
     })
     .map((t) => t.id);
 }
+
+export function isValidDice(dice) {
+  return Number.isInteger(dice) && dice >= 1 && dice <= 6;
+}
+
+export function canTokenMove(token, dice) {
+  if (!token || !isValidDice(dice)) return false;
+  if (token.progress === 56) return false;
+  if (token.progress < 0) return dice === 6;
+  return token.progress + dice <= 56;
+}
+
+export function getMovableTokens(tokens, color, dice) {
+  if (!Array.isArray(tokens) || !isValidDice(dice)) return [];
+  return tokens.filter((t) => t.color === color && canTokenMove(t, dice));
+}
